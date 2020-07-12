@@ -23,33 +23,10 @@
   with a set of helper functions.
 */
 
-var iAmOnNode = false;
-var Canvas;
-var Image;
-var fs;
-if ( !!process && process.execPath ) {
-    iAmOnNode = true;
-}
-if (iAmOnNode) {
-  Canvas = require('canvas');
-  Image = Canvas.Image;
-  fs = require('fs');
-}
-
 var CanvasImage = function (image) {
     // in node we use strings as path to an image
     // whereas in the browser we use an image element
-    if (iAmOnNode) {
-      this.canvas = Canvas.createCanvas()
-      var img = new Image;
-
-      if(image instanceof Buffer) {
-        img.src = image
-      }else{
-        img.src = fs.readFileSync(image);
-      }
-
-    } else {
+    {
       this.canvas = document.createElement('canvas');
       document.body.appendChild(this.canvas);
       var img = image;
@@ -142,15 +119,18 @@ ColorThief.prototype.getPalette = function(sourceImage, colorCount, quality, all
 
     // Create custom CanvasImage object
     var image      = new CanvasImage(sourceImage);
-    var imageData  = image.getImageData();
-    var pixels     = imageData.data;
-    var pixelCount = image.getPixelCount();
-    var palette    = this.getPaletteFromPixels(pixels, pixelCount, colorCount, quality, allowWhite);
-
-    // Clean up
-    image.removeCanvas();
-
-    return palette;
+    try {
+	// NOTE: This first line will crash spectacularly for cross-origin images
+	var imageData  = image.getImageData();
+	var pixels     = imageData.data;
+	var pixelCount = image.getPixelCount();
+	var palette    = this.getPaletteFromPixels(pixels, pixelCount, colorCount, quality, allowWhite);
+	return palette;
+    }
+    finally {
+	// Cleanup
+	image.removeCanvas();
+    }
 };
 
 /*
@@ -173,7 +153,9 @@ ColorThief.prototype.getPaletteFromPixels = function(pixels, pixelCount, colorCo
         a = pixels[offset + 3];
         // If pixel is mostly opaque and not white
         if (a >= 125) {
-            if ((!(r > 250 && g > 250 && b > 250) && allowWhite !== true) || (!(r > 255 && g > 255 && b > 255) && allowWhite === true )) {
+	        // NOTE: This is lowered from normal to more dominantly ignore grays
+	        // See /data/B-auc1-bqlCAcqbVHiA1kA/AZ4-_K8.svg for an image that is fixed by this
+            if ((!(r > 210 && g > 210 && b > 210) && allowWhite !== true) || (!(r > 255 && g > 255 && b > 255) && allowWhite === true )) {
                 pixelArray.push([r, g, b]);
             }
         }
